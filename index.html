@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Calculadora de Juros Compostos com Gráfico</title>
+
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- XLSX para exportar Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- html2pdf para exportar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 30px;
+            background-image: url('https://media.istockphoto.com/id/459928521/pt/foto/dinheiro-caindo-do-c%C3%A9u.jpg?s=1024x1024&w=is&k=20&c=4eyxf3i6ymav-oJY4qanE_3-IUr7k2LwMZm-QOHqUBI=');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        input, button {
+            padding: 10px;
+            margin-bottom: 15px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #resultado {
+            font-size: 20px;
+            font-weight: bold;
+            color: green;
+            margin-top: 10px;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #eee;
+        }
+
+        canvas {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Calculadora de Juros Compostos com Depósitos</h2>
+
+        <label>1º Valor Inicial (R$):</label>
+        <input type="number" id="valor" step="0.01">
+
+        <label>2º Taxa de Juros (%):</label>
+        <input type="number" id="juros" step="0.01">
+
+        <label>3º Quantidade de Vezes (períodos):</label>
+        <input type="number" id="periodos">
+
+        <label>4º Depósitos Periódicos (R$):</label>
+        <input type="number" id="deposito" step="0.01">
+
+        <button onclick="calcularMontante()">5º Calcular</button>
+
+        <div id="resultado"></div>
+
+        <canvas id="graficoMontante" height="100"></canvas>
+
+        <div style="margin-top: 20px;">
+            <button onclick="exportarExcel()">📤 Exportar para Excel</button>
+            <button onclick="exportarPDF()">📄 Exportar para PDF</button>
+        </div>
+
+        <table id="tabelaResultado">
+            <thead>
+                <tr>
+                    <th>Período</th>
+                    <th>Depósito</th>
+                    <th>Juros no Período</th>
+                    <th>Saldo Acumulado</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let grafico;
+
+        function calcularMontante() {
+            const valor = parseFloat(document.getElementById('valor').value);
+            const juros = parseFloat(document.getElementById('juros').value) / 100;
+            const periodos = parseInt(document.getElementById('periodos').value);
+            const deposito = parseFloat(document.getElementById('deposito').value);
+
+            if (isNaN(valor) || isNaN(juros) || isNaN(periodos) || isNaN(deposito)) {
+                document.getElementById('resultado').innerText = "Preencha todos os campos corretamente.";
+                return;
+            }
+
+            let saldo = valor;
+            let dadosGrafico = [];
+            let labels = [];
+            let tbody = document.querySelector("#tabelaResultado tbody");
+            tbody.innerHTML = "";
+
+            for (let i = 1; i <= periodos; i++) {
+                let jurosPeriodo = saldo * juros;
+                saldo += jurosPeriodo + deposito;
+
+                dadosGrafico.push(saldo.toFixed(2));
+                labels.push(`Período ${i}`);
+
+                let row = `
+                    <tr>
+                        <td>${i}</td>
+                        <td>R$ ${deposito.toFixed(2).replace('.', ',')}</td>
+                        <td>R$ ${jurosPeriodo.toFixed(2).replace('.', ',')}</td>
+                        <td>R$ ${saldo.toFixed(2).replace('.', ',')}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            }
+
+            document.getElementById('resultado').innerText = `Montante Final: R$ ${saldo.toFixed(2).replace('.', ',')}`;
+
+            if (grafico) grafico.destroy();
+
+            const ctx = document.getElementById('graficoMontante').getContext('2d');
+            grafico = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Evolução do Montante',
+                        data: dadosGrafico,
+                        borderColor: 'green',
+                        backgroundColor: 'lightgreen',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: value => `R$ ${value}`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function exportarExcel() {
+            const tabela = document.getElementById("tabelaResultado");
+            const wb = XLSX.utils.table_to_book(tabela, { sheet: "Investimento" });
+            XLSX.writeFile(wb, "resultado_investimento.xlsx");
+        }
+
+        function exportarPDF() {
+            const container = document.querySelector(".container");
+            const options = {
+                margin: 0.5,
+                filename: 'relatorio_investimento.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(options).from(container).save();
+        }
+    </script>
+</body>
+</html>
